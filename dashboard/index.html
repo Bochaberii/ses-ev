@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDV // EV Control Room</title>
+  <script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
+  <style>
+    :root { --ink:#e8edf2; --muted:#8b9aa8; --bg:#0b1116; --panel:#121b21; --line:#283640; --cyan:#62e6d4; --amber:#f6bd60; --red:#ff6b6b; --green:#83e377; }
+    * { box-sizing:border-box; } body { margin:0; background:radial-gradient(circle at 80% 0%,#19363a 0,#0b1116 42%); color:var(--ink); font-family:Georgia,serif; min-height:100vh; }
+    main { max-width:1100px; margin:auto; padding:34px 22px 48px; } header { display:flex; justify-content:space-between; align-items:end; border-bottom:1px solid var(--line); padding-bottom:20px; gap:20px; } h1 { margin:0; font-size:clamp(2rem,5vw,4.8rem); letter-spacing:0; line-height:.9; font-weight:400; } .kicker { color:var(--cyan); font:600 11px monospace; letter-spacing:2px; } .connection { color:var(--muted); font:12px monospace; }
+    .alert { margin:22px 0; padding:13px 16px; border-left:4px solid var(--green); background:#10221e; font:14px monospace; } .alert.warn { border-color:var(--amber); background:#2b2112; } .alert.fault { border-color:var(--red); background:#30181b; }
+    .grid { display:grid; grid-template-columns:1.35fr 1fr 1fr; gap:12px; } .metric, .controls, .events { background:rgba(18,27,33,.86); border:1px solid var(--line); padding:20px; } .metric:first-child { grid-row:span 2; } .label { color:var(--muted); font:11px monospace; text-transform:uppercase; } .value { font-size:clamp(2.4rem,7vw,5.8rem); line-height:1; margin-top:12px; } .unit { font:14px monospace; color:var(--muted); }
+    .bar { height:8px; background:#26343c; margin-top:20px; } .bar span { display:block; height:100%; background:var(--cyan); transition:width .5s; } .controls, .events { margin-top:12px; } .controls { display:flex; flex-wrap:wrap; gap:8px; } button { border:1px solid var(--cyan); color:var(--cyan); background:transparent; padding:10px 14px; font:12px monospace; cursor:pointer; } button:hover { background:var(--cyan); color:#0b1116; } .events { grid-column:span 2; } ul { margin:12px 0 0; padding:0; list-style:none; color:var(--muted); font:12px monospace; } li { padding:7px 0; border-top:1px solid var(--line); } @media(max-width:700px){ header{display:block} .connection{margin-top:18px} .grid{grid-template-columns:1fr 1fr} .metric:first-child,.events{grid-column:span 2;grid-row:auto} }
+  </style>
+</head>
+<body>
+<main>
+  <header><div><div class="kicker">SOFTWARE-DEFINED VEHICLE / MVP</div><h1>Control<br>Room</h1></div><div class="connection" id="connection">CONNECTING TO MQTT...</div></header>
+  <div class="alert" id="alert">SYSTEM NOMINAL · Awaiting vehicle telemetry</div>
+  <section class="grid">
+    <article class="metric"><div class="label">Battery state of charge</div><div class="value" id="soc">--</div><span class="unit">percent</span><div class="bar"><span id="socBar" style="width:0%"></span></div></article>
+    <article class="metric"><div class="label">Vehicle mode</div><div class="value" id="state" style="font-size:clamp(1.8rem,4vw,3.4rem)">OFF</div><span class="unit" id="elapsed">session 00:00</span></article>
+    <article class="metric"><div class="label">Speed</div><div class="value" id="speed">--</div><span class="unit">kph</span></article>
+    <article class="metric"><div class="label">Motor temperature</div><div class="value" id="temp">--</div><span class="unit">celsius</span></article>
+    <div class="controls"><button data-action="start">START</button><button data-action="drive">DRIVE</button><button data-action="brake">REGEN BRAKE</button><button data-action="charge">CHARGE</button><button data-action="fault">INJECT FAULT</button><button data-action="reset">RESET</button></div>
+    <article class="events"><div class="label">Fault event log · persisted backend records</div><ul id="events"><li>No faults recorded</li></ul></article>
+  </section>
+</main>
+<script>
+const broker = new URLSearchParams(location.search).get('broker') || 'ws://localhost:9001';
+const client = mqtt.connect(broker);
+const started = Date.now();
+const values = {};
+const topicMap = {'vehicle/status':'state','vehicle/speed':'speed','vehicle/battery/soc':'soc','vehicle/motor/temp':'temp'};
+client.on('connect', () => { document.querySelector('#connection').textContent = 'MQTT ONLINE · ' + broker; Object.keys(topicMap).forEach(t => client.subscribe(t)); client.subscribe('vehicle/fault'); });
+client.on('offline', () => document.querySelector('#connection').textContent = 'MQTT OFFLINE · RECONNECTING');
+client.on('message', (topic, raw) => { try { const data = JSON.parse(raw); values[topic] = data; render(topic, data); } catch (_) {} });
+client.on('error', () => document.querySelector('#connection').textContent = 'MQTT ERROR · CHECK BROKER');
+document.querySelectorAll('button').forEach(button => button.onclick = () => client.publish('vehicle/command', JSON.stringify({action:button.dataset.action})));
+function render(topic, data) {
+  if (topic === 'vehicle/status') { const state = data.state.toUpperCase(); document.querySelector('#state').textContent = state; const alert = document.querySelector('#alert'); alert.textContent = state === 'FAULT' ? 'FAULT ACTIVE · Inspect event log' : 'SYSTEM NOMINAL · ' + state; alert.className = 'alert ' + (state === 'FAULT' ? 'fault' : ''); }
+  if (topic === 'vehicle/speed') document.querySelector('#speed').textContent = data.kph.toFixed(1);
+  if (topic === 'vehicle/battery/soc') { document.querySelector('#soc').textContent = data.percent.toFixed(1); document.querySelector('#socBar').style.width = data.percent + '%'; if(data.event === 'regenerative_braking') document.querySelector('#alert').textContent = 'REGENERATIVE BRAKING · SOC RECOVERY +0.35%'; }
+  if (topic === 'vehicle/motor/temp') document.querySelector('#temp').textContent = data.celsius.toFixed(1);
+  if (topic === 'vehicle/fault') addEvent(data);
+}
+function addEvent(data) { const list = document.querySelector('#events'); if(list.children[0]?.textContent === 'No faults recorded') list.innerHTML=''; const row=document.createElement('li'); row.textContent=data.type+' · '+new Date(data.timestamp).toLocaleTimeString(); list.prepend(row); }
+setInterval(() => { const seconds=Math.floor((Date.now()-started)/1000); document.querySelector('#elapsed').textContent='session '+String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0'); fetch('http://localhost:8080/api/latest').then(r=>r.json()).then(data=>{(data.faults||[]).forEach(f=>{});}).catch(()=>{}); },1000);
+</script>
+</body>
+</html>

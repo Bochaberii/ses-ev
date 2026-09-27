@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SDV EV Prototype</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260927" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Software-Defined Electric Vehicle</p>
+          <h1>Functional Prototype V1</h1>
+        </div>
+        <div class="topbar-actions">
+          <button id="startBtn" class="primary">Start Vehicle</button>
+          <button id="stopBtn">Stop Vehicle</button>
+          <button id="resetBtn">Reset Simulation</button>
+        </div>
+      </header>
+
+      <section class="toolbar">
+        <div class="control-group">
+          <label>Accelerator <span id="accelReadout">0%</span></label>
+          <input id="acceleratorInput" type="range" min="0" max="100" value="0" />
+        </div>
+        <div class="control-group">
+          <label>Brake <span id="brakeReadout">0%</span></label>
+          <input id="brakeInput" type="range" min="0" max="100" value="0" />
+        </div>
+        <div class="button-group">
+          <button id="chargerConnectBtn">Connect Charger</button>
+          <button id="chargerDisconnectBtn">Disconnect Charger</button>
+        </div>
+        <div class="button-group">
+          <select id="faultSelect">
+            <option value="HIGH_BATTERY_TEMPERATURE">High Battery Temperature</option>
+            <option value="LOW_BATTERY_SOC">Low Battery SOC</option>
+            <option value="MOTOR_OVERTEMPERATURE">Motor Overtemperature</option>
+            <option value="COMMUNICATION_FAILURE">Communication Failure</option>
+          </select>
+          <button id="injectFaultBtn">Inject Fault</button>
+          <button id="clearFaultBtn">Clear Fault</button>
+        </div>
+      </section>
+
+      <section class="scenario-bar">
+        <button data-demo="startup">Startup Demo</button>
+        <button data-demo="driving">Driving Demo</button>
+        <button data-demo="regen">Regenerative Braking Demo</button>
+        <button data-demo="charging">Charging Demo</button>
+        <button data-demo="fault">Fault Demo</button>
+      </section>
+
+      <div class="content-grid">
+        <main class="main-panel">
+          <section class="stats-grid">
+            <article class="stat-card">
+              <p class="label">Vehicle Speed</p>
+              <h2 id="speedValue">0.0 km/h</h2>
+            </article>
+            <article class="stat-card">
+              <p class="label">Vehicle State</p>
+              <h2 id="stateValue">OFF</h2>
+            </article>
+            <article class="stat-card">
+              <p class="label">SOC</p>
+              <h2 id="socValue">0%</h2>
+            </article>
+            <article class="stat-card">
+              <p class="label">Battery Power</p>
+              <h2 id="batteryPowerValue">0.0 kW</h2>
+            </article>
+            <article class="stat-card">
+              <p class="label">Motor Torque</p>
+              <h2 id="motorTorqueValue">0.0 Nm</h2>
+            </article>
+            <article class="stat-card">
+              <p class="label">Motor RPM</p>
+              <h2 id="motorRpmValue">0 rpm</h2>
+            </article>
+          </section>
+
+          <section class="chart-panel">
+            <div class="chart-card">
+              <h3>Speed vs Time</h3>
+              <canvas id="speedChart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>SOC vs Time</h3>
+              <canvas id="socChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+              <h3>Battery Power vs Time</h3>
+              <canvas id="powerChart"></canvas>
+            </div>
+          </section>
+        </main>
+
+        <aside class="side-panel">
+          <section class="panel-block">
+            <h3>System Status</h3>
+            <ul class="status-list">
+              <li>VCU: <strong id="vcuStatus">READY</strong></li>
+              <li>BMS: <strong id="bmsStatus">READY</strong></li>
+              <li>Motor Controller: <strong id="motorStatus">READY</strong></li>
+              <li>Communication: <strong id="commStatus">OK</strong></li>
+            </ul>
+          </section>
+
+          <section class="panel-block">
+            <h3>Fault Monitor</h3>
+            <div id="faultSummary">No active faults.</div>
+          </section>
+
+          <section class="panel-block">
+            <h3>Engineering Details</h3>
+            <details open>
+              <summary>Prototype assumptions</summary>
+              <ul class="details-list">
+                <li>Vehicle mass: 1500 kg</li>
+                <li>Wheel radius: 0.30 m</li>
+                <li>Battery capacity: 60 kWh</li>
+                <li>Peak motor torque: 250 Nm</li>
+                <li>Peak motor power: 100 kW</li>
+                <li>Pilot SOC start: 80%</li>
+              </ul>
+            </details>
+          </section>
+        </aside>
+      </div>
+
+      <section class="bottom-grid">
+        <div class="panel-block architecture-panel">
+          <h3>Architecture</h3>
+          <div class="architecture-diagram">
+            <div class="node">Driver / HMI</div>
+            <div class="arrow">↓</div>
+            <div class="node">VCU</div>
+            <div class="subtree">
+              <span>BMS</span>
+              <span>Motor Controller</span>
+              <span>Charging</span>
+              <span>Diagnostics</span>
+            </div>
+            <div class="arrow">↓</div>
+            <div class="node">Vehicle Dynamics</div>
+            <div class="arrow">↓</div>
+            <div class="node">Simulation State</div>
+            <div class="arrow">↓</div>
+            <div class="node">Dashboard</div>
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>Energy</h3>
+          <ul class="energy-list">
+            <li>Consumed: <strong id="energyConsumed">0.0 kWh</strong></li>
+            <li>Recovered: <strong id="energyRecovered">0.0 kWh</strong></li>
+            <li>Net: <strong id="energyNet">0.0 kWh</strong></li>
+            <li>Charging Power: <strong id="chargingPower">0.0 kW</strong></li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/app.js?v=20260927"></script>
+  </body>
+</html>
